@@ -1,0 +1,15 @@
+<launch>
+
+        <!-- configs -->
+        <arg name="output_filename" default=""/>
+        <arg name="fps" default="30"/>
+
+        <node pkg="ros_make_video" type="ros_make_video" name="ros_make_video">
+        <param name="camera" value="$(arg camera)"/>
+        <param name="output_filename" value="$(arg output_filename)"/>
+        <param name="fps" value="$(arg fps)"/>
+        <remap from="/camera" to="/camera_info"/>
+        <remap from="/audio" to="/audio"/>
+        </node>
+
+</launch>
