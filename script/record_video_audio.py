@@ -17,7 +17,7 @@ class VideoAudioRecorder:
         # 訂閱相機和音頻主題
         self.bridge = CvBridge()
         self.frame = None
-        rospy.Subscriber('/camera', Image, self.image_callback)
+        rospy.Subscriber('/usb_cam/image_raw', Image, self.image_callback)
         rospy.Subscriber('/audio', AudioData, self.audio_callback)
 
         # 設置錄製參數
