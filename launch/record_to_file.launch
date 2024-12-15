@@ -3,12 +3,13 @@
         <!-- configs -->
         <arg name="output_filename" default=""/>
         <arg name="fps" default="30"/>
+        <arg name="run_bag" default="false"/>
 
         <node pkg="ros_make_video" type="ros_make_video" name="ros_make_video">
-        <param name="camera" value="$(arg camera)"/>
         <param name="output_filename" value="$(arg output_filename)"/>
         <param name="fps" value="$(arg fps)"/>
-        <remap from="/camera" to="/camera_info"/>
+        <param name="use_sim_time" value="$(arg run_bag)"/>
+        <remap from="/camera" to="/usb_cam/image_raw"/>
         <remap from="/audio" to="/audio"/>
         </node>
 
