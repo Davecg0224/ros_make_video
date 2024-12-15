@@ -12,7 +12,7 @@ import os
 
 class VideoAudioRecorder:
     def __init__(self):
-        rospy.init_node('video_audio_recorder', anonymous=True)
+        rospy.init_node('video_audio_recorder', anonymous=False)
 
         # 訂閱相機和音頻主題
         self.bridge = CvBridge()
