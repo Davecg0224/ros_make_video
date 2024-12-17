@@ -1,86 +1,66 @@
 #!/usr/bin/env python3
 
 import rospy
-from sensor_msgs.msg import Image
-from audio_common_msgs.msg import AudioData
-from cv_bridge import CvBridge
-import cv2
-import wave
 import subprocess
-import threading
 import os
-
-class VideoAudioRecorder:
-    def __init__(self):
-        rospy.init_node('video_audio_recorder', anonymous=False)
-
-        # 訂閱相機和音頻主題
-        self.bridge = CvBridge()
-        self.frame = None
-        rospy.Subscriber('/usb_cam/image_raw', Image, self.image_callback)
-        rospy.Subscriber('/audio', AudioData, self.audio_callback)
-
-        # 設置錄製參數
-        self.fps = rospy.get_param("fps", 30)
-        self.video_filename = rospy.get_param("video_filename", "output.avi")
-        self.audio_filename = rospy.get_param("audio_filename", "output.wav")
-        self.output_filename = rospy.get_param("output_filename", "output.mp4")
-
-        # 初始化視頻錄製
-        self.fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        self.out = cv2.VideoWriter(self.video_filename, self.fourcc, self.fps, (640, 480))
-
-        # 初始化音頻錄製
-        self.audio_frames = []
-        self.audio_rate = 16000  # 16 kHz
-
-        # 開啟錄製
-        self.recording = True
-
-    def image_callback(self, msg):
-        # 將 ROS Image 消息轉換為 OpenCV 格式
-        self.frame = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-
-    def audio_callback(self, msg):
-        # 收集音頻數據
-        self.audio_frames.append(msg.data)
-
-    def record_video(self):
-        # 持續錄製視頻
-        rate = rospy.Rate(self.fps)
-        while not rospy.is_shutdown() and self.recording:
-            if self.frame is not None:
-                self.out.write(self.frame)
-            rate.sleep()
-
-    def save_audio(self):
-        # 將音頻數據保存為 WAV 文件
-        with wave.open(self.audio_filename, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)  # 每個采樣點的字節數 (16位 = 2字節)
-            wf.setframerate(self.audio_rate)
-            wf.writeframes(b''.join(self.audio_frames))
-
-    def stop_recording(self):
-        # 停止錄製
-        self.recording = False
-        self.out.release()
-        rospy.loginfo("Video recording stopped.")
-        self.save_audio()
-        rospy.loginfo("Audio recording saved.")
-
-        # 使用 ffmpeg 合併音視頻
-        cmd = f"ffmpeg -i {self.video_filename} -i {self.audio_filename} -c:v libx264 -c:a aac -strict experimental {self.output_filename}"
-        subprocess.call(cmd, shell=True)
-        rospy.loginfo(f"Output file saved as {self.output_filename}")
-
-    def run(self):
-        video_thread = threading.Thread(target=self.record_video)
-        video_thread.start()
-        rospy.on_shutdown(self.stop_recording)
-        rospy.spin()
+import argparse
 
 
-if __name__ == '__main__':
-    recorder = VideoAudioRecorder()
-    recorder.run()
+# Import the function from the existing scripts
+from bag2audio import extract_audio_from_bag
+from bag2video import RosVideoWriter
+
+
+def generate_video_from_bag(bag_file, audio_topic, image_topic, output_video_file, output_audio_file, final_file, fps=30, rate=1):
+    # Step 1: Extract audio from the ROS bag
+    print(f"Extracting audio from bag file: {bag_file}")
+    extract_audio_from_bag(bag_file, audio_topic, output_audio_file)
+
+    # Step 2: Create video from the image topic in the ROS bag
+    print(f"Creating video from bag file: {bag_file}")
+    videowriter = RosVideoWriter(fps=fps, rate=rate, topic=image_topic, output_filename=output_video_file)
+    videowriter.addBag(bag_file)
+    repaired_video_file = "repaired_video.mp4"
+    cmd = [
+        "ffmpeg", "-i", output_video_file, "-c", "copy",
+        "-movflags", "+faststart", repaired_video_file
+    ]
+    subprocess.run(cmd)
+
+    # Step 3: Combine audio and video using ffmpeg
+    print(f"Combining video and audio into {final_file}")
+    combine_audio_and_video(output_video_file, output_audio_file, final_file)
+
+
+def combine_audio_and_video(video_file, audio_file, final_file = "final.mp4"):
+    command = [
+        "ffmpeg", "-i", video_file, "-i", audio_file,
+        "-c:v", "copy", "-strict", "experimental", final_file
+    ]
+    subprocess.run(command)
+    print(f"Final video saved as {final_file}")
+
+def setArg():
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument("-b", "--bag",help="bag path", default="/path/to/your/rosbag.bag")
+    argParser.add_argument("-a", "--audio", help="audio topic", default="/audio")
+    argParser.add_argument("-i", "--image", help="image topic", default="/usb_cam/image_raw")
+    argParser.add_argument("-v", "--video", help="output video file", default="video.mp4")
+    argParser.add_argument("-s", "--sound", help="output sound file", default="sound.wav")
+    argParser.add_argument("-f", "--final", help="final output file", default="final.mp4")
+    args = argParser.parse_args()
+    return args
+
+if __name__ == "__main__":
+    args = setArg()
+
+    # generate_video_from_bag(bag_file = args., audio_topic, image_topic, output_video_file, output_audio_file)
+    generate_video_from_bag(bag_file = args.bag, 
+                            audio_topic = args.audio, 
+                            image_topic = args.image, 
+                            output_video_file = args.video,
+                            output_audio_file = args.sound,
+                            final_file = args.final)
+    
+    # combine_audio_and_video(args.video, args.sound, args.final)   
+
